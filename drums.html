@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MediaPipe Air Drums - Full Kit</title>
+    <style>
+        :root {
+            --background-color: #121212;
+            --drum-pad-bg: #1e1e1e;
+            --drum-pad-border: #333;
+            --text-color: #e0e0e0;
+            --hit-color: #00bcd4;
+            /* A new, cool blue for hits */
+            --accent-color: #4CAF50;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            background-color: var(--background-color);
+            margin: 0;
+            padding: 1rem;
+            color: var(--text-color);
+            overflow: hidden;
+            height: 100vh;
+            box-sizing: border-box;
+        }
+
+        h1 {
+            color: var(--accent-color);
+        }
+
+        /* --- Video & Canvas --- */
+        #video-container {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            width: 240px;
+            height: 180px;
+            border-radius: 12px;
+            overflow: hidden;
+            border: 2px solid var(--drum-pad-border);
+            z-index: 100;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.5);
+        }
+
+        video,
+        canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            transform: scaleX(-1);
+        }
+
+        /* --- Drum Kit Layout --- */
+        #drum-kit {
+            flex-grow: 1;
+            width: 100%;
+            max-width: 1200px;
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            grid-template-rows: repeat(3, 1fr);
+            gap: 1.5rem;
+            padding: 1rem;
+        }
+
+        .drum-pad {
+            background-color: var(--drum-pad-bg);
+            border: 3px solid var(--drum-pad-border);
+            border-radius: 15px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+            font-size: 1.5em;
+            font-weight: bold;
+            color: var(--text-color);
+            transition: transform 0.1s, box-shadow 0.1s, border-color 0.1s;
+            cursor: pointer;
+            user-select: none;
+            padding: 1rem;
+            text-align: center;
+            box-shadow: 0 5px 10px rgba(0, 0, 0, 0.3);
+        }
+
+        .drum-pad.hit {
+            transform: scale(0.95);
+            border-color: var(--hit-color);
+            box-shadow: 0 0 25px var(--hit-color);
+        }
+
+        /* --- Specific Drum Pad Positions for a full kit --- */
+
+        /* Top Row: Cymbals & High Toms */
+        #crash {
+            grid-column: 1 / 2;
+            grid-row: 1 / 2;
+            border-radius: 50%;
+            /* Cymbals are round */
+        }
+
+        #tom1 {
+            grid-column: 2 / 3;
+            grid-row: 1 / 2;
+        }
+
+        #tom2 {
+            grid-column: 3 / 4;
+            grid-row: 1 / 2;
+        }
+
+        #ride {
+            grid-column: 4 / 5;
+            grid-row: 1 / 2;
+            border-radius: 50%;
+            /* Cymbals are round */
+        }
+
+        /* Middle Row: The essentials - Hi-Hat and Snare */
+        #hi-hat-closed {
+            grid-column: 1 / 2;
+            grid-row: 2 / 3;
+            font-size: 1.2em;
+        }
+
+        #hi-hat-open {
+            grid-column: 2 / 3;
+            grid-row: 2 / 3;
+            font-size: 1.2em;
+        }
+
+        #snare {
+            grid-column: 3 / 5;
+            /* Make snare larger */
+            grid-row: 2 / 3;
+        }
+
+        /* Bottom Row: The low end - Kick and Floor Tom */
+        #kick {
+            grid-column: 1 / 4;
+            grid-row: 3 / 4;
+            font-size: 2.5em;
+            background-color: #2c2c2c;
+            /* Slightly different for the main drum */
+        }
+
+        #floor-tom {
+            grid-column: 4 / 5;
+            grid-row: 3 / 4;
+        }
+
+
+        /* --- Loader --- */
+        #loader {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.9);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 200;
+            color: white;
+            font-size: 1.5em;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div id="loader">Loading AI Model & Full Sound Kit...</div>
+
+    <h1>MediaPipe Air Drums 🥁 (Full Kit)</h1>
+    <p>Use your index and middle fingers as drumsticks to play the full kit!</p>
+
+    <div id="video-container">
+        <video id="webcam" autoplay playsinline></video>
+        <canvas id="hand-canvas"></canvas>
+    </div>
+
+    <div id="drum-kit">
+        <div class="drum-pad" id="crash" data-sound="crash">Crash</div>
+        <div class="drum-pad" id="tom1" data-sound="tom1">High Tom</div>
+        <div class="drum-pad" id="tom2" data-sound="tom2">Mid Tom</div>
+        <div class="drum-pad" id="ride" data-sound="ride">Ride</div>
+
+        <div class="drum-pad" id="hi-hat-closed" data-sound="hihatClosed">Closed Hi-Hat</div>
+        <div class="drum-pad" id="hi-hat-open" data-sound="hihatOpen">Open Hi-Hat</div>
+        <div class="drum-pad" id="snare" data-sound="snare">Snare</div>
+
+        <div class="drum-pad" id="kick" data-sound="kick">Kick</div>
+        <div class="drum-pad" id="floor-tom" data-sound="floorTom">Floor Tom</div>
+    </div>
+
+    <script type="module">
+        import { HandLandmarker, FilesetResolver, DrawingUtils } from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.12/vision_bundle.mjs";
+
+        // --- DOM Elements ---
+        const video = document.getElementById('webcam');
+        const canvasElement = document.getElementById('hand-canvas');
+        const canvasCtx = canvasElement.getContext('2d');
+        const loader = document.getElementById('loader');
+
+        let handLandmarker;
+        const drumHitZones = {};
+        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        const drumSounds = {};
+
+        // --- New state management ---
+        const lastHitTimes = {}; // Tracks the last time a pad was hit to prevent double-hits
+        const lastStickPositions = {}; // Tracks last position of each finger "stick" for velocity
+        const HIT_COOLDOWN = 150; // ms
+
+        async function setup() {
+            const vision = await FilesetResolver.forVisionTasks("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.12/wasm");
+            handLandmarker = await HandLandmarker.createFromOptions(vision, {
+                baseOptions: {
+                    modelAssetPath: `https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task`,
+                    delegate: "GPU"
+                },
+                runningMode: "VIDEO",
+                numHands: 2
+            });
+
+            // --- Updated Sound Kit using your files ---
+            // Note: I've made educated guesses on what the filenames represent.
+            const soundFiles = {
+                kick: 'sounds/BD0000.mp3',      // A solid bass drum
+                snare: 'sounds/SD0025.mp3',     // A crisp snare
+                hihatClosed: 'sounds/CH.mp3',   // Closed Hi-Hat
+                hihatOpen: 'sounds/OH25.mp3',   // Open Hi-Hat
+                crash: 'sounds/CY0010.mp3',    // Crash Cymbal
+                ride: 'sounds/RS.mp3',        // Ride Cymbal
+                tom1: 'sounds/SD0000.mp3',      // A high-pitched snare can act as a high tom
+                tom2: 'sounds/SD0010.mp3',      // A slightly deeper snare for a mid tom
+                floorTom: 'sounds/BD0010.mp3'   // A punchy, higher-pitched kick for the floor tom
+            };
+
+
+            const loadPromises = Object.keys(soundFiles).map(key => loadSound(key, soundFiles[key]));
+            await Promise.all(loadPromises);
+
+            await startWebcam();
+            loader.style.display = 'none';
+            calculateHitZones();
+            predictWebcam();
+        }
+
+        async function loadSound(name, url) {
+            try {
+                const response = await fetch(url);
+                if (!response.ok) throw new Error(`Failed to fetch ${url}: ${response.statusText}`);
+                const arrayBuffer = await response.arrayBuffer();
+                const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+                drumSounds[name] = audioBuffer;
+            } catch (error) {
+                console.error(`Could not load sound: ${name}.`, error);
+                const pad = document.querySelector(`[data-sound="${name}"]`);
+                if (pad) pad.innerText = 'Load Failed';
+            }
+        }
+
+        function playSound(name, velocity = 1.0) {
+            if (!drumSounds[name] || audioContext.state === 'suspended') return;
+            const source = audioContext.createBufferSource();
+            source.buffer = drumSounds[name];
+
+            const gainNode = audioContext.createGain();
+            // Velocity affects volume. A harder hit (faster finger movement) is louder.
+            gainNode.gain.value = Math.max(0.1, Math.min(1.0, velocity));
+
+            source.connect(gainNode).connect(audioContext.destination);
+            source.start(0);
+        }
+
+        async function startWebcam() {
+            const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+            video.srcObject = stream;
+            return new Promise(resolve => video.addEventListener("loadeddata", resolve));
+        }
+
+        let lastVideoTime = -1;
+        function predictWebcam() {
+            // Adjust canvas to video size only once if needed
+            if (canvasElement.width !== video.videoWidth) {
+                canvasElement.width = video.videoWidth;
+                canvasElement.height = video.videoHeight;
+            }
+
+            const startTimeMs = performance.now();
+            if (video.currentTime !== lastVideoTime) {
+                lastVideoTime = video.currentTime;
+                const results = handLandmarker.detectForVideo(video, startTimeMs);
+
+                canvasCtx.save();
+                canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+
+                if (results.landmarks) {
+                    const drawingUtils = new DrawingUtils(canvasCtx);
+                    for (let i = 0; i < results.landmarks.length; i++) {
+                        const landmarks = results.landmarks[i];
+                        drawingUtils.drawConnectors(landmarks, HandLandmarker.HAND_CONNECTIONS, { color: "#FFFFFF", lineWidth: 3 });
+                        drawingUtils.drawLandmarks(landmarks, { color: "#00bcd4", radius: 4 });
+
+                        // Process two "sticks" per hand: index and middle fingers
+                        processStick(landmarks, i, 8, startTimeMs); // Index finger tip
+                        processStick(landmarks, i, 12, startTimeMs); // Middle finger tip
+                    }
+                }
+                canvasCtx.restore();
+            }
+
+            window.requestAnimationFrame(predictWebcam);
+        }
+
+        function calculateHitZones() {
+            document.querySelectorAll('.drum-pad').forEach(pad => {
+                const rect = pad.getBoundingClientRect();
+                drumHitZones[pad.id] = {
+                    x: rect.left,
+                    y: rect.top,
+                    width: rect.width,
+                    height: rect.height,
+                };
+                lastHitTimes[pad.id] = 0; // Initialize last hit time for each pad
+            });
+        }
+
+        function processStick(landmarks, handIndex, stickLandmarkIndex, now) {
+            const stickTip = landmarks[stickLandmarkIndex];
+            if (!stickTip) return;
+
+            // A unique ID for each finger "stick" (e.g., 'hand0-index8', 'hand1-middle12')
+            const stickId = `hand${handIndex}-finger${stickLandmarkIndex}`;
+
+            // Mirror X coordinate for intuitive control
+            const mirroredX = window.innerWidth * (1 - stickTip.x);
+            const y = window.innerHeight * stickTip.y;
+
+            // --- Velocity Calculation ---
+            let velocity = 1.0;
+            const lastPosition = lastStickPositions[stickId];
+            if (lastPosition) {
+                // Check for a significant downward motion (increase in y)
+                const dy = stickTip.y - lastPosition.y;
+                if (dy > 0.01) { // Threshold for a downward "hit" motion
+                    // Velocity is proportional to how fast the finger moved down
+                    velocity = Math.min(1.5, 0.5 + dy * 25);
+                } else {
+                    velocity = 0; // Not a downward hit, so no sound
+                }
+            }
+            // Store current position for the next frame's velocity calculation
+            lastStickPositions[stickId] = { x: stickTip.x, y: stickTip.y };
+
+            if (velocity <= 0.1) return; // Don't process if it's not a clear hit
+
+            // --- Hit Detection ---
+            for (const padId in drumHitZones) {
+                const zone = drumHitZones[padId];
+                if (mirroredX > zone.x && mirroredX < zone.x + zone.width && y > zone.y && y < zone.y + zone.height) {
+
+                    // Check cooldown to prevent rapid, unintentional re-triggering
+                    if (now - lastHitTimes[padId] > HIT_COOLDOWN) {
+                        lastHitTimes[padId] = now; // Update the last hit time
+
+                        const pad = document.getElementById(padId);
+                        pad.classList.add('hit');
+                        playSound(pad.dataset.sound, velocity);
+                        setTimeout(() => pad.classList.remove('hit'), 100);
+                    }
+                    // Since we hit a pad, we don't need to check other pads for this specific stick
+                    break;
+                }
+            }
+        }
+
+        // Recalculate hit zones if the window is resized
+        window.addEventListener('resize', calculateHitZones);
+
+        // The AudioContext must be resumed by a user gesture (like a click)
+        document.body.addEventListener('click', () => {
+            if (audioContext.state === 'suspended') {
+                audioContext.resume();
+            }
+        }, { once: true });
+
+        setup();
+    </script>
+</body>
+
+</html>
